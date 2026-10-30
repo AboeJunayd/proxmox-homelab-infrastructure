@@ -1,35 +1,49 @@
 # Infrastructure Architecture
 
-## Overview
-The homelab runs on a bare-metal Proxmox VE hypervisor, providing the foundation for isolated cybersecurity lab environments.
+## Target Architecture
 
-## Hardware
+### Network Infrastructure
 
-| Component | Specification |
-|---|---|
-| CPU | Intel Core Ultra 7 265K |
-| Memory | 64 GB RAM |
-| Storage | 1 TB Kingston NVMe SSD |
-| Network | 1 physical network interface |
+Internet  
+↓  
+Home Router  
+↓  
+Proxmox VE  
+↓  
+OPNsense Firewall  
+↓  
+Isolated Lab Network
 
-## Software
+### Identity and Enterprise Services
 
-| Component | Version |
-|---|---|
-| Hypervisor | Proxmox VE 9.2.24 |
-| Kernel | 7.0.14-24-pve |
-| Firewall | OPNsense 26.7 |
-| Management VM | Ubuntu |
+- Windows Server 2025 - Active Directory, DNS and GPO
+- Windows Server - AD CS / PKI
+- Windows 11 Workstation 1
+- Windows 11 Workstation 2
+- Ubuntu Server - Nginx Webserver
 
-## Virtual Network Architecture
+### Security Monitoring
 
-The infrastructure uses two Linux bridges:
+- Wazuh - Endpoint Security Monitoring
+- Suricata - Network Intrusion Detection
+- Zeek - Network Security Monitoring
 
-- **vmbr0:** WAN connectivity.
-- **vmbr1:** Isolated internal lab network.
+### Security Operations
 
-OPNsense acts as the firewall and router between the WAN and isolated lab network.
+- Xubuntu SOC Workstation
+- Kali Linux - Offensive Security
 
-## Future Expansion
+### VPN Connectivity
 
-The infrastructure will be extended with Active Directory, Windows workstations, a web server and Wazuh security monitoring.
+- WireGuard - Remote Access
+- IPsec - Site-to-Site VPN
+- Second OPNsense - Simulated Remote Site
+
+### Future Network Segmentation
+
+- VLAN 10 - Management
+- VLAN 20 - Servers
+- VLAN 30 - Workstations
+- VLAN 40 - Security Monitoring
+- VLAN 50 - DMZ
+- VLAN 60 - VPN Clients
