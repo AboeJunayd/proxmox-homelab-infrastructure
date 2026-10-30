@@ -1,52 +1,72 @@
 # Firewall Configuration
 
-## Overview
+## 1. Overview
 
-OPNsense acts as the central firewall and router for the homelab. It controls traffic between the WAN interface and the isolated lab network.
+OPNsense acts as the central firewall and router for the Proxmox homelab.
 
-## Firewall Objectives
+It controls traffic between the WAN and the isolated lab network and enforces network access policies.
 
-- Restrict access between network segments.
+## 2. Firewall Objectives
+
+The firewall configuration aims to:
+
+- Provide controlled outbound internet access for lab systems.
+- Restrict access from the lab network to private network ranges.
 - Protect the Proxmox management interface.
-- Allow controlled outbound internet connectivity.
-- Prevent unauthorized access to private network ranges.
+- Allow required network services such as DNS.
+- Provide a foundation for future network segmentation.
 
-## LAN Firewall Rules
+## 3. Network Interfaces
 
-The following rules are configured on the LAN interface:
+| Interface | Connected Network | Purpose |
+|---|---|---|
+| WAN | vmbr0 | Connectivity through the home network |
+| LAN | vmbr1 | Isolated lab network |
+
+## 4. LAN Firewall Rules
+
+The following rules represent the documented LAN firewall policy.
 
 | Rule | Source | Destination | Action |
 |---|---|---|---|
-| Allow OPNsense GUI Management | LAN network | 10.10.10.1:HTTPS | Allow |
-| Allow lab to DNS | LAN network | 10.10.10.1:DNS | Allow |
-| Block Lab to Private Networks | LAN network | PRIVATE_NETWORKS | Block |
-| Default allow LAN to any rule | LAN network | Any | Allow |
+| Allow OPNsense GUI Management | LAN net | 10.10.10.1:HTTPS | Pass |
+| Allow Lab DNS | LAN net | 10.10.10.1:DNS | Pass |
+| Block Lab to Private Networks | LAN net | PRIVATE_NETWORKS | Block |
+| Default allow LAN to any | LAN net | Any | Pass |
 
-Rules are processed from top to bottom. The block rule prevents lab systems from accessing restricted private network ranges before traffic reaches the default allow rule.
+## 5. Rule Processing
 
-### Screenshot
+OPNsense evaluates firewall rules in order.
 
-![OPNsense LAN Firewall Rules](../screenshots/firewall/lan-rules.png)
+The private network block rule must be evaluated before the general LAN allow rule.
 
-## Network Protection
+This prevents matching traffic from the lab network to the private network ranges defined in the `PRIVATE_NETWORKS` alias from reaching the default allow rule.
 
-Access to the Proxmox management interface (TCP/8006) is restricted from the isolated lab network.
+The default LAN allow rule permits other traffic that is not blocked by an earlier rule.
 
-## NAT Configuration
+## 6. Management Interface Protection
 
-Outbound NAT provides internet connectivity for systems within the isolated lab network.
+Access to the Proxmox management interface (TCP port 8006) is restricted from the lab network.
 
-## Validation
+Remote administration is performed through the configured Tailscale management connection.
 
-Firewall behavior is validated through:
+## 7. Validation
 
-- Connectivity tests.
-- DNS resolution tests.
-- Port access checks.
-- Firewall log inspection.
+The following checks have been performed during network configuration:
 
-## Future Improvements
+- Lab internet connectivity.
+- DNS resolution from the lab network.
+- ICMP connectivity testing.
+- Verification that TCP access to the Proxmox GUI (port 8006) is blocked from the lab network.
 
-- Review and refine firewall rules.
-- Expand network monitoring and logging.
-- Document additional security controls.
+## 8. Security Considerations
+
+The current configuration provides network isolation through firewall rules, but it is not a default-deny policy.
+
+Further hardening opportunities include:
+
+- Replacing the general LAN allow rule with explicitly permitted services.
+- Reviewing the contents of the `PRIVATE_NETWORKS` alias.
+- Reviewing IPv6 firewall policy.
+- Implementing dedicated VLAN firewall policies.
+- Logging and monitoring relevant blocked traffic.
