@@ -34,6 +34,9 @@ The following rules represent the documented LAN firewall policy.
 | Block Lab to Private Networks | LAN net | PRIVATE_NETWORKS | Block |
 | Default allow LAN to any | LAN net | Any | Pass |
 
+
+![OPNsense LAN Firewall Rules](../screenshots/firewall/lan-rules.png)
+
 ## 5. Rule Processing
 
 OPNsense evaluates firewall rules in order.
