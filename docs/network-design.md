@@ -22,7 +22,6 @@ OPNsense connects both networks and acts as the central firewall and router.
 | LAN | 10.10.10.0/24 | Internal lab network |
 | OPNsense LAN | 10.10.10.1 | Default gateway |
 
-Actual home network addressing is intentionally omitted.
 
 ## Network Services
 
