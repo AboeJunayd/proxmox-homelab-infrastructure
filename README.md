@@ -59,9 +59,13 @@ Backup archives passed compression integrity checks. An isolated VM restore has 
 
 ## Documentation
 
-- [Infrastructure Architecture](docs/architecture.md)
-- [Network Design](docs/network-design.md)
-- [Firewall Configuration](docs/firewall-configuration.md)
+| Document | Contents |
+|---|---|
+| [Infrastructure Architecture](docs/architecture.md) | Components, design decisions and constraints |
+| [Network Design](docs/network-design.md) | VLANs, addressing, routing, DNS and DHCP |
+| [Firewall Configuration](docs/firewall-configuration.md) | Required traffic flows and policy structure |
+| [Validation](docs/validation.md) | Recorded results and outstanding checks |
+| [Troubleshooting](docs/troubleshooting.md) | DNS and management network investigations |
 
 ## Next Steps
 
