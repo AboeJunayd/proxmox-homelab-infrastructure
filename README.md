@@ -1,47 +1,61 @@
-# Proxmox Homelab Infrastructure
+# Proxmox Cybersecurity Homelab
 
-## Overview
+A segmented Windows and Linux lab built to develop practical security operations skills through controlled testing, investigation and troubleshooting.
 
-This project documents the design, deployment and security configuration of my personal cybersecurity homelab, built on Proxmox VE and OPNsense.
+**Operational baseline: 7 virtual machines across 5 VLANs.**
 
-The environment provides an isolated virtual infrastructure for enterprise security testing, defensive security operations, penetration testing and detection engineering.
+## Architecture
 
-## Objectives
+Proxmox VE hosts the environment. OPNsense provides routing, firewall controls and outbound connectivity through a VLAN-aware internal bridge.
 
-- Build and maintain an isolated virtual environment.
-- Implement firewall controls and network isolation.
-- Deploy enterprise infrastructure using Active Directory and Windows clients.
-- Implement centralized security monitoring and network detection.
-- Perform controlled offensive security testing.
-- Develop practical detection engineering and incident response capabilities.
+```mermaid
+flowchart TD
+    UP["Upstream network"] --- WAN["vmbr0 · WAN bridge"]
+    WAN --- HOST["Proxmox host management"]
+    WAN --- FW["OPNsense · Router and firewall"]
+    FW --- LAB["vmbr1 · VLAN-aware internal bridge"]
 
-## Current Environment
+    LAB --- MGMT["VLAN 10 · Management"]
+    LAB --- SERV["VLAN 20 · Servers"]
+    LAB --- WORK["VLAN 30 · Workstations"]
+    LAB --- SEC["VLAN 40 · Security"]
+    LAB --- DMZ["VLAN 50 · DMZ"]
 
-| Component | Technology |
-|---|---|
-| Hypervisor | Proxmox VE 9.2 |
-| Firewall | OPNsense 26.7 |
-| Management VM | Xubuntu |
-| Networking | Proxmox Linux Bridges (vmbr0 / vmbr1) |
-| Lab Network | 10.10.10.0/24 |
-| Lab Gateway | 10.10.10.1 |
+    MGMT --- XU["Xubuntu"]
+    SERV --- DC["DC01 · AD DS / DNS"]
+    WORK --- WIN["Two Windows 11 clients"]
+    SEC --- WAZ["Wazuh"]
+    DMZ --- WEB["Nginx"]
+```
 
-## Network Architecture
+*Lines show network attachment. Inter-VLAN access is controlled by OPNsense firewall policy.*
 
-The current infrastructure uses an isolated internal lab network behind OPNsense.
+| VLAN | Zone | Subnet | Workloads |
+|---|---|---|---|
+| 10 | Management | 10.10.10.0/24 | Xubuntu administration workstation |
+| 20 | Servers | 10.10.20.0/24 | Windows Server 2025 — AD DS and DNS |
+| 30 | Workstations | 10.10.30.0/24 | Two domain-joined Windows 11 clients |
+| 40 | Security | 10.10.40.0/24 | Wazuh manager, indexer and dashboard |
+| 50 | DMZ | 10.10.50.0/24 | Ubuntu Server running Nginx |
 
-Future development includes VLAN-based segmentation to separate management, servers, workstations, security monitoring and DMZ workloads.
+OPNsense controls routed traffic between zones through service-specific firewall exceptions. The web service is internal, with no public port forward.
 
-## Planned Security Infrastructure
+VLAN 10 contains the administration workstation. Proxmox host management remains on the upstream network, protected by host firewall controls and accessed remotely through Tailscale.
 
-- Windows Server 2025 - Active Directory and Group Policy
-- Windows 11 - Domain-joined workstations
-- Ubuntu Server - Nginx webserver
-- Windows Server - Active Directory Certificate Services (AD CS)
-- Wazuh - Security monitoring
-- Suricata - Network intrusion detection
-- Zeek - Network traffic analysis
-- Kali Linux - Offensive security testing
+## Key Results
+
+- Migrated the original flat network into five functional VLANs.
+- Established Active Directory, DNS and two domain-joined workstations.
+- Connected three Windows and two Linux endpoints to Wazuh.
+- Validated selected domain services, internal web access and network restrictions.
+- Restored persistent management connectivity after investigating firewall rule order and conflicting Netplan configuration.
+- Created seven VM backups, a Proxmox configuration backup and an OPNsense export.
+
+## Validation Boundaries
+
+Five active Wazuh agents were recorded at the final checkpoint. Specific Nginx and Sysmon ingestion, along with attack detection coverage, still require validation.
+
+Backup archives passed compression integrity checks. An isolated VM restore has not yet been tested.
 
 ## Documentation
 
@@ -49,6 +63,8 @@ Future development includes VLAN-based segmentation to separate management, serv
 - [Network Design](docs/network-design.md)
 - [Firewall Configuration](docs/firewall-configuration.md)
 
-## Project Scope
+## Next Steps
 
-This repository documents the implementation process, technical configurations, security controls and validation results as the homelab evolves.
+- Validate a controlled event from its source through to Wazuh.
+- Perform an isolated restore and verify service recovery.
+- Develop investigation case studies that reference this infrastructure.
