@@ -1,75 +1,80 @@
 # Firewall Configuration
 
-## 1. Overview
+[Back to project overview](../README.md)
 
-OPNsense acts as the central firewall and router for the Proxmox homelab.
+OPNsense controls routed traffic between the five lab VLANs and provides restricted outbound connectivity.
 
-It controls traffic between the WAN and the isolated lab network and enforces network access policies.
+## Policy Structure
 
-## 2. Firewall Objectives
+The documented IPv4 policy follows this order on each source interface:
 
-The firewall configuration aims to:
+1. Permit required gateway and inter-VLAN services.
+2. Block other traffic to private networks.
+3. Permit selected internet access.
+4. Deny unmatched traffic.
 
-- Provide controlled outbound internet access for lab systems.
-- Restrict access from the lab network to private network ranges.
-- Protect the Proxmox management interface.
-- Allow required network services such as DNS.
-- Provide a foundation for future network segmentation.
+Required exceptions must precede the private-network block. Otherwise, that block can prevent legitimate traffic from reaching its allow rule.
 
-## 3. Network Interfaces
+Rules are stateful: return traffic matching an established state does not require a broad reverse allow rule.
 
-| Interface | Connected Network | Purpose |
-|---|---|---|
-| WAN | vmbr0 | Connectivity through the home network |
-| LAN | vmbr1 | Isolated lab network |
+## Required Traffic Flows
 
-## 4. LAN Firewall Rules
-
-The following rules represent the documented LAN firewall policy.
-
-| Rule | Source | Destination | Action |
+| Source | Destination | Service | Purpose |
 |---|---|---|---|
-| Allow OPNsense GUI Management | LAN net | 10.10.10.1:HTTPS | Pass |
-| Allow Lab DNS | LAN net | 10.10.10.1:DNS | Pass |
-| Block Lab to Private Networks | LAN net | PRIVATE_NETWORKS | Block |
-| Default allow LAN to any | LAN net | Any | Pass |
+| Management workstation | Management gateway | HTTPS, DNS and ICMP | Firewall administration, name resolution and connectivity checks |
+| Management workstation | Wazuh | HTTPS and SSH | Dashboard access and host administration |
+| Management workstation | Web01 | SSH | Web server administration |
+| Windows workstations | DC01 | DNS and required AD services | Domain discovery, authentication and Group Policy |
+| Windows workstations | Web01 | HTTP | Internal web service testing |
+| Five monitored endpoints | Wazuh | TCP 1514 | Agent communication |
+| Servers, security and DMZ hosts | Their local gateway | DNS and ICMP | Name resolution and gateway checks |
+| Lab zones | Internet destinations | TCP 443, after preceding restrictions | Restricted outbound connectivity |
 
+This is a service-level summary. It does not reproduce every rule, alias or AD port definition.
 
-![OPNsense LAN Firewall Rules](../screenshots/firewall/lan-rules.png)
+Agent enrollment is separate from ongoing Wazuh agent communication.
 
-## 5. Rule Processing
+## Private Network Restrictions
 
-OPNsense evaluates firewall rules in order.
+The `PRIVATE_NETWORKS` alias is used to restrict access to private destinations, including the upstream home network.
 
-The private network block rule must be evaluated before the general LAN allow rule.
+Explicit service exceptions allow necessary internal connections before this block is evaluated. The alias contents determine which destinations the block covers.
 
-This prevents matching traffic from the lab network to the private network ranges defined in the `PRIVATE_NETWORKS` alias from reaching the default allow rule.
+Proxmox host management remains on the upstream network. Guest access is restricted through OPNsense, while the host firewall separately limits management access.
 
-The default LAN allow rule permits other traffic that is not blocked by an earlier rule.
+No public inbound port forward is configured for Nginx or Wazuh.
 
-## 6. Management Interface Protection
+## Troubleshooting: Management Access
 
-Access to the Proxmox management interface (TCP port 8006) is restricted from the lab network.
+During management VLAN cutover, an intended HTTPS exception was placed after the private-network block.
 
-Remote administration is performed through the configured Tailscale management connection.
+Packet capture showed incoming TCP SYN packets without a successful handshake. Firewall logging identified the matching block rule.
 
-## 7. Validation
+Correcting the rule order restored GUI access. This demonstrated why troubleshooting must establish which rule actually processed the traffic.
 
-The following checks have been performed during network configuration:
+## Validation
 
-- Lab internet connectivity.
-- DNS resolution from the lab network.
-- ICMP connectivity testing.
-- Verification that TCP access to the Proxmox GUI (port 8006) is blocked from the lab network.
+The build notes record:
 
-## 8. Security Considerations
+- Selected DNS, HTTPS and internal application connections.
+- Selected blocked connections to private destinations.
+- Management access after the final network correction and reboot.
+- Five active Wazuh agents at the final checkpoint.
 
-The current configuration provides network isolation through firewall rules, but it is not a default-deny policy.
+These observations support the tested paths. They do not establish that every source, destination and protocol combination has been validated.
 
-Further hardening opportunities include:
+A rule-table screenshot shows configuration intent. Endpoint results and matching firewall logs provide stronger evidence of enforcement.
 
-- Replacing the general LAN allow rule with explicitly permitted services.
-- Reviewing the contents of the `PRIVATE_NETWORKS` alias.
-- Reviewing IPv6 firewall policy.
-- Implementing dedicated VLAN firewall policies.
-- Logging and monitoring relevant blocked traffic.
+## Validation Gaps
+
+- Retain a current capture of the applied rules and alias definitions.
+- Document a compact matrix of allowed and denied test flows.
+- Review remaining rules on the former untagged LAN.
+- Establish the IPv6 configuration and validate its isolation separately.
+
+The historical flat-LAN screenshot is excluded because it does not represent the segmented baseline.
+
+## Related Documentation
+
+- [Infrastructure Architecture](architecture.md)
+- [Network Design](network-design.md)
