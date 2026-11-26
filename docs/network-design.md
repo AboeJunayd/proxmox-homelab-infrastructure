@@ -1,87 +1,94 @@
 # Network Design
 
-## 1. Overview
+[Back to project overview](../README.md)
 
-The homelab uses an isolated virtual network behind an OPNsense firewall.
+The lab uses five functional VLANs behind OPNsense. Proxmox provides virtual switching; OPNsense provides inter-VLAN routing, firewall controls and outbound NAT.
 
-The network design separates the lab environment from the home network and provides controlled internet connectivity for lab systems.
+## Virtual Switching
 
-VLAN-based segmentation is planned for a later phase.
+| Component | Function |
+|---|---|
+| vmbr0 | Connects the physical interface, OPNsense WAN and Proxmox host management to the upstream network |
+| vmbr1 | Internal VLAN-aware bridge with no physical port or Proxmox host IP |
+| OPNsense WAN interface | Attached to vmbr0 |
+| OPNsense internal interface | Attached to vmbr1 as the VLAN trunk |
+| Endpoint interfaces | Attached to vmbr1 with their assigned VLAN tag |
 
-## 2. Physical and Virtual Network Architecture
+The original untagged LAN no longer has an IPv4 address. Its parent interface remains enabled to carry the VLAN interfaces.
 
-The Proxmox host has one physical network interface and uses two Linux bridges.
+Traffic between different VLANs passes through OPNsense. Traffic within the same VLAN remains within that broadcast domain.
 
-| Bridge | Role | Connection |
-|---|---|---|
-| vmbr0 | WAN | Physical network / home router |
-| vmbr1 | Lab LAN | Isolated virtual network |
+## VLANs and Addressing
 
-OPNsense is connected to both bridges:
+| VLAN | Zone | Subnet | Gateway |
+|---|---|---|---|
+| 10 | Management | 10.10.10.0/24 | 10.10.10.1 |
+| 20 | Servers | 10.10.20.0/24 | 10.10.20.1 |
+| 30 | Workstations | 10.10.30.0/24 | 10.10.30.1 |
+| 40 | Security | 10.10.40.0/24 | 10.10.40.1 |
+| 50 | DMZ | 10.10.50.0/24 | 10.10.50.1 |
 
-- WAN interface connected to `vmbr0`.
-- LAN interface connected to `vmbr1`.
+Infrastructure hosts use static addresses. Windows workstations receive DHCP leases.
 
-OPNsense acts as the central gateway and firewall for the lab network.
+VLAN 60 was reserved during planning and is outside the implemented baseline.
 
-## 3. Current IP Addressing
+## DHCP
 
-| Component | Interface | IP Address |
-|---|---|---|
-| OPNsense | LAN | 10.10.10.1/24 |
-| Lab Network | LAN subnet | 10.10.10.0/24 |
-| Lab Clients | LAN | DHCP assigned |
+Dnsmasq on OPNsense provides DHCP for the workstation VLAN.
 
-The WAN interface receives connectivity through the home network.
+| Setting | Value |
+|---|---|
+| Address pool | 10.10.30.100–10.10.30.200 |
+| Default gateway | 10.10.30.1 |
+| DNS server | 10.10.20.10 — DC01 |
+| Domain suffix | ad.kcprojects.test |
 
-## 4. Network Services
+Clients use AD DNS to support domain discovery, authentication and Group Policy.
 
-OPNsense provides the following services to the lab network:
+## DNS Resolution
 
-- DHCP for dynamic IP address assignment.
-- DNS for name resolution.
-- NAT for outbound internet connectivity.
-- Firewall rules to control network traffic.
+| Source or query | Resolution path |
+|---|---|
+| Windows workstations | DC01 at 10.10.20.10 |
+| DC01 external queries | Forwarded to OPNsense at 10.10.20.1 |
+| Management, security and DMZ hosts | Their local OPNsense gateway |
+| AD-zone queries received by OPNsense | Forwarded specifically to DC01 |
 
-## 5. Network Isolation
+Unbound provides DNS on port 53. Dnsmasq supplies local DNS registration on port 53053 behind Unbound; endpoints do not query that port directly.
 
-The lab network is separated from the home network using OPNsense firewall rules.
+Specific forwarding for `ad.kcprojects.test` lets non-domain hosts resolve AD records without forwarding all queries back to DC01.
 
-The current configuration is intended to:
+The internal record `lab.ad.kcprojects.test` resolves to the Nginx server at `10.10.50.20`. Successful DNS resolution and application reachability are separate checks.
 
-- Allow controlled outbound internet connectivity.
-- Restrict access from lab systems to private network ranges.
-- Prevent lab systems from accessing the Proxmox management interface.
-- Keep lab workloads isolated from the home environment.
+## Network Access Boundaries
 
-Network isolation is enforced through firewall policy rather than VLAN segmentation.
+OPNsense permits required service paths between zones and restricts other private-network access. Selected outbound internet access uses NAT through the WAN interface.
 
-## 6. Remote Management
+The DMZ hosts an internal web service. No public inbound port forward is configured for Nginx or Wazuh.
 
-Tailscale is configured for secure remote access to the Proxmox host.
+VLAN separation establishes network boundaries; firewall policy determines which routed connections are permitted. Endpoint firewalls remain relevant within each VLAN.
 
-This management path is separate from the lab network's normal internet connectivity.
+The documented validation covers IPv4. IPv6 isolation has not been established by the available evidence.
 
-## 7. Planned Network Segmentation
+## Management and Recovery
 
-VLAN-based segmentation will be introduced in a future phase.
+The Xubuntu administration workstation resides in VLAN 10. Proxmox host management remains on the upstream network, with host firewall controls and Tailscale for remote administration.
 
-| VLAN | Purpose | Planned Subnet |
-|---|---|---|
-| 10 | Management | 10.10.10.0/24 |
-| 20 | Servers | 10.10.20.0/24 |
-| 30 | Workstations | 10.10.30.0/24 |
-| 40 | Security Monitoring | 10.10.40.0/24 |
-| 50 | DMZ | 10.10.50.0/24 |
-| 60 | VPN Clients | 10.10.60.0/24 |
+Hypervisor console access provides a recovery path when guest networking or OPNsense management becomes unavailable.
 
-The future design will use firewall policies to control communication between VLANs.
+## Migration Approach
 
-## 8. Future Considerations
+The original flat network was migrated in stages:
 
-- Implement VLAN tagging and trunking.
-- Define inter-VLAN firewall policies.
-- Separate management, server, workstation and monitoring traffic.
-- Deploy WireGuard remote access.
-- Configure an IPsec site-to-site VPN.
-- Evaluate network traffic visibility for Suricata and Zeek.
+1. Enable VLAN-aware switching and configure OPNsense VLAN interfaces.
+2. Establish gateways, firewall exceptions and workstation DHCP.
+3. Move workloads individually and update addressing, DNS and agent settings.
+4. Validate required services and selected blocked connections.
+5. Complete management cutover and verify connectivity after reboot.
+
+This sequence helped isolate failures while retaining a recovery path.
+
+## Related Documentation
+
+- [Infrastructure Architecture](architecture.md)
+- [Firewall Configuration](firewall-configuration.md)
