@@ -1,113 +1,69 @@
 # Infrastructure Architecture
 
-## 1. Project Overview
+[Back to project overview](../README.md)
 
-This homelab is built on Proxmox VE and uses OPNsense as its central firewall and router.
+The lab provides identity, application and monitoring services for controlled security investigations. It runs on a single Proxmox VE host with 64 GB RAM, 1 TB NVMe storage and one physical network interface.
 
-The infrastructure provides an isolated environment for cybersecurity testing, enterprise infrastructure deployment, security monitoring and incident response.
+## Virtual Machines
 
-## 2. Current Infrastructure
+| VM | Operating system / role | VLAN | Address |
+|---|---|---|---|
+| ubuntu-mgmt | Xubuntu administration workstation | 10 | 10.10.10.146 |
+| opnsense-fw | Firewall, routing, DNS and DHCP | Trunk | .1 gateway in each lab subnet |
+| DC01 | Windows Server 2025 — AD DS and DNS | 20 | 10.10.20.10 |
+| WIN11-01 | Domain-joined Windows 11 workstation | 30 | DHCP |
+| WIN11-02 | Domain-joined Windows 11 workstation | 30 | DHCP |
+| wazuh01 | Ubuntu Server — Wazuh all-in-one | 40 | 10.10.40.40 |
+| ubuntu-web01 | Ubuntu Server — Nginx | 50 | 10.10.50.20 |
 
-### Hardware
+The management VM appears as `xubuntu-vm` in Wazuh. Windows workstation addresses are DHCP leases and may change.
 
-| Component | Specification |
+## Network Boundaries
+
+- **vmbr0** connects the physical interface, OPNsense WAN and Proxmox host management to the upstream network.
+- **vmbr1** is an internal VLAN-aware bridge with no physical port or Proxmox host IP.
+- OPNsense carries the five lab VLANs through its internal virtual interface and controls routed traffic between them.
+- Endpoint virtual interfaces use the VLAN tag assigned to their workload.
+
+VLAN 10 contains the administration workstation. The hypervisor's own management interface remains on the upstream network, with host firewall controls and Tailscale for remote administration.
+
+VLANs separate broadcast domains. OPNsense enforces policy between routed zones; traffic within a VLAN still requires endpoint controls.
+
+## Identity Services
+
+DC01 hosts the `ad.kcprojects.test` forest and provides Active Directory DNS.
+
+Two Windows 11 clients are domain joined. Organizational units separate lab users, administrators, workstations and servers. Standard and administrative accounts are distinct.
+
+Windows clients use DC01 for DNS. External queries are forwarded from DC01 to OPNsense.
+
+## Application and Monitoring Services
+
+Nginx provides an internal web service in the DMZ, allowing client-to-server connectivity and logging to be tested without public exposure.
+
+Wazuh runs its manager, indexer and dashboard on one VM. Five agents cover DC01, both Windows workstations, the management workstation and the web server.
+
+Agent connectivity is established. Specific log-source ingestion and detection behavior require separate validation.
+
+## Design Decisions
+
+| Decision | Reason |
 |---|---|
-| CPU | Intel Core Ultra 7 265K |
-| CPU Cores | 20 |
-| Memory | 64 GB RAM |
-| Storage | 1 TB Kingston NVMe SSD |
-| Physical Network Interfaces | 1 |
+| Separate workloads by function | Make required service paths and network boundaries explicit |
+| Centralize routing through OPNsense | Apply and investigate inter-VLAN firewall policy |
+| Keep console recovery available | Recover guest networking without depending on the affected management path |
+| Use one Wazuh VM | Limit operational complexity while establishing telemetry |
+| Keep Nginx internal | Provide a repeatable application test target without public publishing |
 
-### Virtualization
+## Constraints
 
-| Component | Version / Configuration |
-|---|---|
-| Hypervisor | Proxmox VE 9.2.24 |
-| Operating System | Debian GNU/Linux 13 |
-| Kernel | 7.0.14-24-pve |
-| Firewall | OPNsense 26.7 |
+The physical host, storage and sole domain controller are single points of failure. Wazuh components share one VM and have no independent availability boundary.
 
-### Network Infrastructure
+Startup priorities help order infrastructure boot, but delays do not establish service readiness.
 
-| Component | Configuration |
-|---|---|
-| WAN Bridge | vmbr0 |
-| LAN Bridge | vmbr1 |
-| Lab Network | 10.10.10.0/24 |
-| OPNsense LAN Gateway | 10.10.10.1 |
-| Management VM | Xubuntu |
-| Remote Management | Tailscale |
+Backup archive integrity has been checked. An isolated restore and application recovery have not yet been demonstrated.
 
-### Current Network Design
+## Related Documentation
 
-The Proxmox host uses two Linux bridges:
-
-- `vmbr0`: Connected to the physical network and used for WAN connectivity.
-- `vmbr1`: Isolated virtual network for lab systems.
-
-OPNsense connects both bridges and provides firewalling, routing, DHCP, DNS and NAT for the lab network.
-
-The lab network is isolated from the home network through firewall rules.
-
-## 3. Planned Enterprise Infrastructure
-
-### Identity and Access Management
-
-- Windows Server 2025 - Active Directory Domain Services
-- DNS and Group Policy
-- Two Windows 11 domain-joined workstations
-- Separate Windows Server for Active Directory Certificate Services (AD CS)
-
-### Enterprise Services
-
-- Ubuntu Server LTS
-- Nginx web server
-
-## 4. Planned Security Monitoring
-
-| Component | Purpose |
-|---|---|
-| Wazuh | Security monitoring and endpoint detection |
-| Suricata | Network intrusion detection and prevention |
-| Zeek | Network traffic analysis |
-
-## 5. Planned Security Operations
-
-- SOC workstation for security investigations
-- Kali Linux for controlled penetration testing
-- Wireshark for network analysis
-- YARA for file and malware analysis
-- Volatility for memory forensics
-
-## 6. Planned Network Expansion
-
-The current lab uses a single isolated LAN.
-
-Future development includes VLAN-based segmentation:
-
-| VLAN | Purpose | Planned Subnet |
-|---|---|---|
-| 10 | Management | 10.10.10.0/24 |
-| 20 | Servers | 10.10.20.0/24 |
-| 30 | Workstations | 10.10.30.0/24 |
-| 40 | Security Monitoring | 10.10.40.0/24 |
-| 50 | DMZ | 10.10.50.0/24 |
-| 60 | VPN Clients | 10.10.60.0/24 |
-
-## 7. Planned VPN Connectivity
-
-- WireGuard for remote VPN access.
-- IPsec site-to-site VPN using a second OPNsense instance.
-
-Tailscale will remain available for secure Proxmox management.
-
-## 8. Project Roadmap
-
-1. Infrastructure and network isolation
-2. Active Directory deployment
-3. Enterprise services and PKI
-4. Security monitoring deployment
-5. SOC workstation configuration
-6. Offensive security testing
-7. VLAN segmentation and VPN connectivity
-8. Detection engineering and DFIR
+- [Network Design](network-design.md)
+- [Firewall Configuration](firewall-configuration.md)
