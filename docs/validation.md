@@ -29,6 +29,14 @@ Earlier build checkpoints recorded representative endpoint telemetry across all 
 
 Agent status establishes connectivity. Each specific log source and detection requires its own end-to-end validation.
 
+### Agent Connectivity Checkpoint — 27 November 2026
+
+![Wazuh dashboard showing five active lab agents](../screenshots/wazuh/wazuh-agents.png)
+
+All five lab agents are active, with zero disconnected, pending or never-connected agents. The displayed addresses align with the segmented network design.
+
+This checkpoint confirms agent connectivity at capture time. Specific log ingestion and detection behavior require separate validation.
+
 ## Backup Checks
 
 | Item | Recorded check | Limitation |
