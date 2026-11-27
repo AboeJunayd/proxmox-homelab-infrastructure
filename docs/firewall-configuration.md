@@ -52,6 +52,12 @@ Packet capture showed incoming TCP SYN packets without a successful handshake. F
 
 Correcting the rule order restored GUI access. This demonstrated why troubleshooting must establish which rule actually processed the traffic.
 
+## SECURITY VLAN Rule Configuration
+
+![OPNsense SECURITY VLAN interface rules](../screenshots/firewall/security-vlan-rules.png)
+
+*Manual IPv4 interface rules for VLAN 40: allow gateway ICMP and DNS, block other private destinations, then permit outbound HTTPS. Automatically generated rules are collapsed. This screenshot documents configuration; enforcement requires separate connection tests and firewall logs.*
+
 ## Validation
 
 The build notes record:
